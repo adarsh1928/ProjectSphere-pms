@@ -1,5 +1,6 @@
-import { Column, Entity, PrimaryGeneratedColumn, OneToMany, Index } from "typeorm";
+import { Column, Entity, PrimaryGeneratedColumn, OneToMany, Index, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from "typeorm";
 import { Project } from "src/project/entities/project.entity";
+import { Exclude } from "class-transformer";
 
 enum UserRole {
   ADMIN = 'admin',
@@ -10,7 +11,7 @@ enum UserRole {
 @Entity()
 export class User {
   @PrimaryGeneratedColumn()
-  id: number
+  readonly id: number
 
   @Column({
     nullable: false
@@ -21,11 +22,12 @@ export class User {
     nullable: false
   })
   @Index({ unique: true })
-  email: string
+  readonly email: string
 
   @Column({
     nullable: false
   })
+  @Exclude()
   password: string
 
   @Column({
@@ -33,8 +35,17 @@ export class User {
     enum: UserRole,
     nullable: false
   })
-  role: UserRole;
+  readonly role: UserRole;
 
   @OneToMany(() => Project, (project) => project.pm_id)
   projects: Project[]
+
+  @CreateDateColumn({ nullable: false })
+  readonly created_at: Date
+
+  @UpdateDateColumn()
+  readonly updated_at: Date
+
+  @DeleteDateColumn()
+  readonly deleted_at: Date
 }
