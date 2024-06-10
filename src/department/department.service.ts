@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException, Req } from '@nestjs/common';
+import { BadRequestException, HttpException, Injectable, InternalServerErrorException, NotFoundException, Req } from '@nestjs/common';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
 import { Department } from './entities/department.entity';
@@ -6,9 +6,6 @@ import { DepartmentUser } from './entities/department-user.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateDepartmentUserDto } from './dto/create-department-user.dto';
-import { User } from 'src/users/entities/user.entity';
-import sendNotifyEmail from 'src/notification/Email/sendNotifyMail';
-import { UsersService } from 'src/users/users.service';
 import { httpStatusCodes } from 'utils/sendresponse';
 
 @Injectable()
@@ -99,6 +96,7 @@ export class DepartmentService {
     try {
       const isExists = await this.findUserInDepartment(departmentUserData.department_id, departmentUserData.user_id);
       if (isExists > 0) throw new BadRequestException('User already exists in this departmnet');
+      await this.findOne(departmentUserData.department_id);
       const departmentUser = await this.departmentUserRepository.create(departmentUserData as unknown as DepartmentUser)
       await this.departmentUserRepository.save(departmentUser)
       return departmentUser;
