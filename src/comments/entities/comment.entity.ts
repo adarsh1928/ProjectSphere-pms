@@ -1,4 +1,3 @@
-
 import { Task } from "../../task/entities/task.entity";
 import { User } from "../../users/entities/user.entity";
 import { Column, CreateDateColumn, Entity, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";

@@ -13,31 +13,28 @@ import {
   UseInterceptors,
   HttpException,
   NotFoundException,
-  UsePipes,
 } from '@nestjs/common';
 import { ProjectService } from './project.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { httpStatusCodes, sendResponse } from '../../utils/sendresponse';
 import { Request, Response } from 'express';
-import { ProjectManagerGuard } from '../../src/auth/Guards/pm.guard';
-import { AuthGuard } from '../../src/auth/Guards/auth.guard';
-import { AdminGuard } from '../../src/auth/Guards/admin.guard';
-import { AdminProjectGuard } from '../../src/auth/Guards/adminProject.guard';
-import { UserprojectService } from 'src/userproject/userproject.service';
-import { ProjectStatus } from '../notification/serviceBasedEmail/projectStatusUpdate'
-import { UsersService } from 'src/users/users.service';
-import { StartDateValidationPipe } from '../Pipes/startDatePipe';
-import { EndDateValidationPipe } from '../Pipes/endDatePipe';
+import { ProjectManagerGuard } from '../auth/Guards/pm.guard'
+import { AuthGuard } from '../auth/Guards/auth.guard';
+import { AdminGuard } from '../auth/Guards/admin.guard';
+import { AdminProjectGuard } from '../auth/Guards/adminProject.guard';
+import { StartDateInterceptor } from '../Interceptors/startDateInterceptor';
+import { EndDateInterceptor } from '../Interceptors/endDateInterceptor';
 
 @Controller('projects')
 export class ProjectController {
-  constructor(private readonly projectService: ProjectService, private readonly userProject: UserprojectService, private readonly usersService: UsersService) { }
+  constructor(private readonly projectService: ProjectService) { }
 
   @UseGuards(AuthGuard, ProjectManagerGuard)
+  @UseInterceptors(StartDateInterceptor, EndDateInterceptor)
   @Post()
   async create(
-    @Body(StartDateValidationPipe, EndDateValidationPipe) createProjectDto: CreateProjectDto,
+    @Body() createProjectDto: CreateProjectDto,
     @Req() req: Request,
     @Res() res: Response,
   ) {
@@ -111,10 +108,11 @@ export class ProjectController {
   }
 
   @UseGuards(AuthGuard, AdminProjectGuard)
+  @UseInterceptors(StartDateInterceptor, EndDateInterceptor)
   @Patch(':id')
   async update(
     @Param('id') id: string,
-    @Body(StartDateValidationPipe) updateProjectDto: UpdateProjectDto,
+    @Body() updateProjectDto: UpdateProjectDto,
     @Req() req: Request,
     @Res() res: Response,
   ) {
@@ -184,73 +182,22 @@ export class ProjectController {
     @Req() req: Request,
     @Res() res: Response
   ) {
-    const project = await this.projectService.findOne(+id);
-
-    if (!project) {
-      throw new NotFoundException('Project with given id does not exists');
-    }
-
-    if (req['user'].role === 'pm') {
-      if (req['user'].id !== project.pm_id.id) {
-        throw new ForbiddenException('Access denied to change the project status');
-      }
-    }
-    
-    await this.projectService.completeProject(+id);
-
-    const pmOrAdminEmail = project.pm_id.email;
-    const projectId = project.id;
-    const projectName = project.name
-
-    const allUsersInProject = await this.userProject.getUsersFromProject(projectId)
-
-    const allUsersId = [];
-    for (const user in allUsersInProject) {
-      const userID = allUsersInProject[user].user_detail.user_id;
-      if (userID) {
-        allUsersId.push(userID)
-      }
-    }
-
-    let allUsersEmail = [];
-    for (const userId in allUsersId) {
-      const usersDetail = await this.usersService.findOne(Number(allUsersId[userId]));
-      allUsersEmail.push(usersDetail.email)
-
-    }
-    console.log("all users", allUsersEmail)
-    ProjectStatus.projectStatusUpdate(pmOrAdminEmail, allUsersInProject, 'completed', projectName, this.usersService)
-
-    return sendResponse(
-      res,
-      httpStatusCodes.OK,
-      'success',
-      'Complete project',
-      allUsersInProject
-    )
-  }
-
-  @UseGuards(AuthGuard, AdminProjectGuard)
-  @Get('/pm/:id')
-  async getAllProjectsByPmId(
-    @Req() req: Request,
-    @Res() res: Response,
-    @Param('id') id: string
-  ) {
     try {
-      if (req['user']?.role === 'pm') {
-        if (req['user']?.id !== parseInt(id)) {
-          throw new ForbiddenException('Access Denied')
+      const project = await this.projectService.findOne(+id);
+
+      if (req['user'].role === 'pm') {
+        if (req['user'].id !== project.pm_id.id) {
+          throw new ForbiddenException('Access denied to change the project status');
         }
       }
 
-      const projects = await this.projectService.getAllProjectsByPmId(+id);
+      await this.projectService.completeProject(+id);
       return sendResponse(
         res,
-        httpStatusCodes['OK'],
+        httpStatusCodes.OK,
         'success',
-        'Get all projects by pm id',
-        projects
+        'Complete project',
+        null
       )
     } catch (error) {
       throw new HttpException(error.message, error.status || httpStatusCodes['Bad Request'])

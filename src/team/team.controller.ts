@@ -24,11 +24,8 @@ import { AdminProjectGuard } from 'src/auth/Guards/adminProject.guard';
 import { AuthGuard } from 'src/auth/Guards/auth.guard';
 import { AdminGuard } from 'src/auth/Guards/admin.guard';
 import { CreateTeamUserDto } from './dto/create-team-user.dto';
-import { ProjectService } from '../project/project.service'
-import { UserInTeam } from 'src/notification/serviceBasedEmail/userInTeam';
-import { TaskUser } from 'src/task/entities/task-user.entity';
 import { UserprojectService } from 'src/userproject/userproject.service';
-import { UsersService } from 'src/users/users.service';
+import { ProjectService } from 'src/project/project.service';
 
 @Controller('team')
 export class TeamController {
@@ -36,7 +33,6 @@ export class TeamController {
     private readonly teamService: TeamService,
     private readonly userprojectService: UserprojectService,
     private readonly projectService: ProjectService,
-    private readonly usersService:UsersService
   ) { }
 
   @UseGuards(AuthGuard, AdminProjectGuard)
@@ -116,15 +112,6 @@ export class TeamController {
   ) {
     try {
       await this.teamService.removeUserFromTeam(teamUserData);
-
-      
-      const pmOrAdminId=req['user'].id;
-
-      const userId=teamUserData.user_id;
-    const teamId=teamUserData.team_id
-     
-      UserInTeam.addOrRemoveToTeam(this.usersService,this.projectService,this.teamService,pmOrAdminId,'Remove',userId,teamId)
-
       return sendResponse(
         res,
         httpStatusCodes.OK,
@@ -246,14 +233,6 @@ export class TeamController {
   ) {
     try {
       const teamUser = await this.teamService.addUserToTeam(teamUserData);
-
-      const pmOrAdminId=req['user'].id;
-
-      const userId=teamUserData.user_id;
-    const teamId=teamUserData.team_id
-     
-      UserInTeam.addOrRemoveToTeam(this.usersService,this.projectService,this.teamService,pmOrAdminId,'Add',userId,teamId)
-
       return sendResponse(
         res,
         httpStatusCodes.Created,

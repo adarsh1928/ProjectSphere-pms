@@ -12,10 +12,7 @@ import {
   UseGuards,
   NotFoundException,
   ForbiddenException,
-  forwardRef,
-  Inject,
   HttpException,
-  ConflictException,
 } from '@nestjs/common';
 import { UserprojectService } from './userproject.service';
 import { CreateUserprojectDto } from './dto/create-userproject.dto';
@@ -25,16 +22,15 @@ import { httpStatusCodes, sendResponse } from 'utils/sendresponse';
 import { AuthGuard } from 'src/auth/Guards/auth.guard';
 import { AdminProjectGuard } from 'src/auth/Guards/adminProject.guard';
 import { ProjectService } from 'src/project/project.service';
-import sendNotifyEmail from 'src/notification/Email/sendNotifyMail';
 import { UsersService } from 'src/users/users.service';
 
 @Controller('userproject')
 export class UserprojectController {
   constructor(
     private readonly userprojectService: UserprojectService,
-    @Inject(forwardRef(() => ProjectService)) private readonly projectService: ProjectService,
-    private readonly usersService: UsersService
-  ) { }
+    private readonly projectService: ProjectService,
+    private readonly usersService: UsersService,
+  ) {}
 
   @UseGuards(AuthGuard, AdminProjectGuard)
   @Post()
@@ -44,23 +40,6 @@ export class UserprojectController {
     @Res() res: Response,
   ) {
     try {
-      const userDetail = await this.usersService.findOne(createUserprojectDto.user_id);
-      const userEmail = userDetail.email;
-
-      const pmOrAdminId = req['user'].id;
-      // console.log('b', pmOrAdminId)
-
-      const pmOrAdminDetail=await this.usersService.findOne(pmOrAdminId);
-      const pmOrAdminEmail=pmOrAdminDetail.email;
-
-
-
-      const projectDetail = await this.projectService.findOne(createUserprojectDto.project_id);
-      const projectName = projectDetail.name
-
-
-      sendNotifyEmail(pmOrAdminEmail, userEmail, `You have been added in project`, `None`, `${projectName}`)
-
       const { project_id, user_id } = createUserprojectDto;
 
       const [project, user] = await Promise.all([
@@ -75,21 +54,17 @@ export class UserprojectController {
         throw new ForbiddenException('Access Denied');
       }
 
-      const userprojectCreate = await this.userprojectService.create(createUserprojectDto);
-
+      const userproject =
+        await this.userprojectService.create(createUserprojectDto);
       return sendResponse(
         res,
         httpStatusCodes.Created,
         'success',
         'UserProject created successfully',
-        userprojectCreate,
+        userproject,
       );
     } catch (error) {
-      if (error instanceof ConflictException) {
-        throw new ConflictException(error.message);
-      } else {
-        throw new BadRequestException(error.message);
-      }
+      throw new BadRequestException(error.message);
     }
   }
 
@@ -101,23 +76,6 @@ export class UserprojectController {
     @Res() res: Response,
   ) {
     try {
-     
-      const userDetail = await this.usersService.findOne(userProjectData.user_id);
-      const userEmail = userDetail.email;
-
-      const pmOrAdminId = req['user'].id;
-      // console.log('b', pmOrAdminId)
-
-      const pmOrAdminDetail=await this.usersService.findOne(pmOrAdminId);
-      const pmOrAdminEmail=pmOrAdminDetail.email;
-
-
-      const projectDetail = await this.projectService.findOne(userProjectData.project_id);
-      const projectName = projectDetail.name
-
-
-      sendNotifyEmail(pmOrAdminEmail, userEmail, `You have been removed from project`, `None`, `${projectName}`)
-
       const project = await this.projectService.findOne(
         userProjectData.project_id,
       );
@@ -131,7 +89,6 @@ export class UserprojectController {
       }
 
       await this.userprojectService.removeUserFromProject(userProjectData);
-
       sendResponse(
         res,
         httpStatusCodes.OK,
@@ -140,15 +97,12 @@ export class UserprojectController {
         null,
       );
     } catch (error) {
-      throw new HttpException(
-        error.message,
-        error.status || httpStatusCodes['Bad Request'],
-      );
+      throw new HttpException(error.message, error.status||httpStatusCodes['Bad Request'])
     }
   }
 
   @UseGuards(AuthGuard)
-  @Get('/users/projectId/:projectId')
+  @Get('/users/:projectId')
   async getUserbyProjectId(
     @Param('projectId') projectId: number,
     @Req() req: Request,
@@ -160,6 +114,10 @@ export class UserprojectController {
       const users =
         await this.userprojectService.getUsersFromProject(projectId);
 
+      if (!users) {
+        throw new NotFoundException('Users does not exists for the project');
+      }
+
       if (user?.role === 'pm') {
         const project = await this.projectService.findOne(projectId);
         if (!project) {
@@ -170,15 +128,16 @@ export class UserprojectController {
             "You can not access other project's members list",
           );
         }
-        if (user?.role === 'employee') {
-          const data = users.filter((u) => {
-            return u.user_detail.user_id === user.id;
-          });
-          if (data.length === 0)
-            throw new ForbiddenException(
-              'You are not the part of this project',
-            );
-        }
+      }
+
+      if (user?.role === 'employee') {
+        const data = users.filter((u) => {
+          return u.user_detail.user_id === user.id;
+        });
+        console.log(data);
+
+        if (data.length === 0)
+          throw new ForbiddenException('You are not the part of this project');
       }
 
       return sendResponse(
@@ -189,32 +148,20 @@ export class UserprojectController {
         users,
       );
     } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw new NotFoundException(error.message);
-      } else {
-        throw new HttpException(
-          error.message,
-          error.status || httpStatusCodes['Bad Request'],
-        );
-      }
+        throw new HttpException(error.message, error.status||httpStatusCodes['Bad Request'])
     }
   }
 
-  @UseGuards(AuthGuard)
-  @Get('/projects/userId/:userId')
+  @UseGuards(AuthGuard, AdminProjectGuard)
+  @Get('/projects/:userId')
   async getProjectsByUserId(
-    @Param('userId') userId: string,
+    @Param('userId') userId: number,
     @Req() req: Request,
     @Res() res: Response,
   ) {
     try {
-      if (req['user']?.role !== 'admin') {
-        if (req['user']?.id !== parseInt(userId)) {
-          throw new ForbiddenException('Access Denied');
-        }
-      }
       const projects =
-        await this.userprojectService.getProjectsFromUser(+userId);
+        await this.userprojectService.getProjectsFromUser(userId);
 
       return sendResponse(
         res,
@@ -224,14 +171,7 @@ export class UserprojectController {
         projects,
       );
     } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw new NotFoundException(error.message);
-      } else {
-        throw new HttpException(
-          error.message,
-          error.status || httpStatusCodes['Bad Request'],
-        );
-      }
+        throw new HttpException(error.message, error.status||httpStatusCodes['Bad Request'])
     }
   }
 }

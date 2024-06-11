@@ -1,4 +1,3 @@
-import { TimeTrackingService } from './../time-tracking/time-tracking.service';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateReportDto } from './dto/create-report.dto';
 import { UpdateReportDto } from './dto/update-report.dto';
@@ -12,8 +11,7 @@ export class ReportService {
   constructor(
     private readonly projectService: ProjectService,
     private readonly taskService: TaskService,
-    private readonly userProjectService: UserprojectService,
-    private readonly timeTrackingService:TimeTrackingService,
+    private readonly userProjectService: UserprojectService
   ) { }
 
   create(createReportDto: CreateReportDto) {
@@ -45,8 +43,6 @@ export class ReportService {
       const task_length = tasks.length;
       const completed_task_length = completedTasks.length
 
-      const taskTimeLine=await this.timeTrackingService.getByProject(id);
-
       return {
         project: {
           title: project.name,
@@ -60,11 +56,7 @@ export class ReportService {
           timeline: {
             start_date: project.startDate,
             expected_end_date: project.expectedEndDate,
-            actual_end_date: project.actualEndDate,
-            work_done:{
-              by_task:taskTimeLine.result,
-              total_hours:taskTimeLine.total_hours,
-            }
+            actual_end_date: project.actualEndDate
           },
           status: project.status,
           progress: JSON.stringify((completed_task_length / (task_length > 0 ? task_length : Infinity)) * 100) + "%"
