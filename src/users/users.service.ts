@@ -52,7 +52,11 @@ export class UsersService {
       }
       return user
     } catch (error) {
-      throw new HttpException(error.message, error.status || httpStatusCodes['Not Found'])
+      if(error instanceof NotFoundException){
+        throw new NotFoundException(error.message)
+      }else{
+        throw new HttpException(error.message, error.status || httpStatusCodes['Not Found'])
+      }
     };
   }
 
@@ -73,7 +77,7 @@ export class UsersService {
       }
       const update = await this.userRepository.update({ id }, updateUserDto);
       if (update.affected === 0) {
-        throw new BadRequestException('No User With The given ID');
+        throw new NotFoundException('No User With The given ID');
       }
       const user = await this.userRepository.findOneBy({ id });
       return user;
